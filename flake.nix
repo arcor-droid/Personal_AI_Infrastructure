@@ -15,9 +15,12 @@
         # Playwright/Chromium dependencies for browser skill
         chromium
         # Audio libraries (for voice system on Linux)
+        mpv           # Primary audio player for platform.ts
         sox
         alsa-lib
         pulseaudio
+        # Desktop notifications (for Linux)
+        libnotify     # Provides notify-send
         # General utilities
         curl
         jq

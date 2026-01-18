@@ -16,6 +16,8 @@
 import { parseArgs } from "util";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
+import { getProjectsPathPattern } from "../../../lib/platform";
 
 // ============================================================================
 // Configuration
@@ -23,8 +25,7 @@ import * as path from "path";
 
 const CLAUDE_DIR = path.join(process.env.HOME!, ".claude");
 const MEMORY_DIR = path.join(CLAUDE_DIR, "MEMORY");
-const USERNAME = process.env.USER || require("os").userInfo().username;
-const PROJECTS_DIR = path.join(CLAUDE_DIR, "projects", `-Users-${USERNAME}--claude`);  // Claude Code native storage
+const PROJECTS_DIR = path.join(CLAUDE_DIR, "projects", getProjectsPathPattern());  // Cross-platform projects path
 const SYSTEM_UPDATES_DIR = path.join(MEMORY_DIR, "PAISYSTEMUPDATES");  // Canonical system change history
 
 // ============================================================================

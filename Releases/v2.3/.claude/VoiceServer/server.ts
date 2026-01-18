@@ -8,6 +8,11 @@ import { spawn } from "child_process";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync, readFileSync } from "fs";
+import {
+  getAudioPlayer,
+  getNotificationCommand,
+  getPlatformInfo
+} from "../lib/platform";
 
 // Load .env from user home directory
 const envPath = join(homedir(), '.env');
@@ -199,7 +204,7 @@ function getVolumeSetting(): number {
   return 1.0; // Default to full volume
 }
 
-// Play audio using afplay (macOS)
+// Play audio using platform-appropriate player
 async function playAudio(audioBuffer: ArrayBuffer): Promise<void> {
   const tempFile = `/tmp/voice-${Date.now()}.mp3`;
 
@@ -207,24 +212,31 @@ async function playAudio(audioBuffer: ArrayBuffer): Promise<void> {
   await Bun.write(tempFile, audioBuffer);
 
   const volume = getVolumeSetting();
+  const player = getAudioPlayer();
+
+  if (!player.available) {
+    console.warn('No audio player available on this system');
+    spawn('rm', ['-f', tempFile]);
+    return;
+  }
 
   return new Promise((resolve, reject) => {
-    // afplay -v takes a value from 0.0 to 1.0
-    const proc = spawn('/usr/bin/afplay', ['-v', volume.toString(), tempFile]);
+    const proc = spawn(player.command, player.args(tempFile, volume));
 
     proc.on('error', (error) => {
-      console.error('Error playing audio:', error);
+      console.error(`Error playing audio with ${player.command}:`, error);
+      spawn('rm', ['-f', tempFile]);
       reject(error);
     });
 
     proc.on('exit', (code) => {
       // Clean up temp file
-      spawn('/bin/rm', [tempFile]);
+      spawn('rm', ['-f', tempFile]);
 
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`afplay exited with code ${code}`));
+        reject(new Error(`${player.command} exited with code ${code}`));
       }
     });
   });
@@ -299,12 +311,12 @@ async function sendNotification(
     }
   }
 
-  // Display macOS notification - escape for AppleScript
+  // Display desktop notification using platform-appropriate method
   try {
-    const escapedTitle = escapeForAppleScript(safeTitle);
-    const escapedMessage = escapeForAppleScript(safeMessage);
-    const script = `display notification "${escapedMessage}" with title "${escapedTitle}" sound name ""`;
-    await spawnSafe('/usr/bin/osascript', ['-e', script]);
+    const notifier = getNotificationCommand();
+    if (notifier.available) {
+      await spawnSafe(notifier.command, notifier.args(safeTitle, safeMessage, { sound: '' }));
+    }
   } catch (error) {
     console.error("Notification display error:", error);
   }
@@ -425,13 +437,15 @@ const server = serve({
     }
 
     if (url.pathname === "/health") {
+      const platformInfo = getPlatformInfo();
       return new Response(
         JSON.stringify({
           status: "healthy",
           port: PORT,
           voice_system: "ElevenLabs",
           default_voice_id: DEFAULT_VOICE_ID,
-          api_key_configured: !!ELEVENLABS_API_KEY
+          api_key_configured: !!ELEVENLABS_API_KEY,
+          platform: platformInfo
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },

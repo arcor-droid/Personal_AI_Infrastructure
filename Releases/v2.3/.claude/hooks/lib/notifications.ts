@@ -18,6 +18,7 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { getIdentity } from './identity';
+import { getNotificationCommand } from '../../lib/platform';
 
 // ============================================================================
 // Types
@@ -294,23 +295,25 @@ export async function sendDiscord(
 }
 
 /**
- * Send native macOS desktop notification
+ * Send native desktop notification (cross-platform)
  */
 export async function sendDesktop(
   title: string,
   message: string,
   options: {
-    sound?: string;       // Sound name (e.g., 'Glass', 'Ping')
-    subtitle?: string;
+    sound?: string;       // Sound name (e.g., 'Glass', 'Ping') - macOS only
+    subtitle?: string;    // macOS only
   } = {}
 ): Promise<boolean> {
   try {
-    const soundPart = options.sound ? ` sound name "${options.sound}"` : '';
-    const subtitlePart = options.subtitle ? ` subtitle "${options.subtitle}"` : '';
+    const notifier = getNotificationCommand();
 
-    const script = `display notification "${message}" with title "${title}"${subtitlePart}${soundPart}`;
+    if (!notifier.available) {
+      console.warn('No notification system available');
+      return false;
+    }
 
-    const proc = Bun.spawn(['osascript', '-e', script]);
+    const proc = Bun.spawn([notifier.command, ...notifier.args(title, message, options)]);
     await proc.exited;
 
     return proc.exitCode === 0;
